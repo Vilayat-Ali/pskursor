@@ -29,19 +29,17 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
     loop {
         terminal.draw(|frame| {
             let area = frame.area();
-            let banner = generate_banner();
 
             let main_layout = Layout::default()
                 .direction(Direction::Vertical)
                 .constraints([
-                    Constraint::Length(7),
+                    Constraint::Length(9),
                     Constraint::Length(3),
                     Constraint::Min(0),
                 ])
                 .split(area);
 
-            frame.render_widget(banner, main_layout[0]);
-
+            render_banner(frame, main_layout[0]);
             render_navbar(frame, main_layout[1], active_tab);
             render_content(frame, main_layout[2], active_tab);
         })?;
@@ -61,7 +59,7 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
     Ok(())
 }
 
-fn generate_banner<'a>() -> Paragraph<'a> {
+fn render_banner(frame: &mut Frame, area: Rect) {
     let banner_text = r#"
  ██████   ██████  ██   ██ ██    ██ ██████   ██████   ██████  ██████  
  ██   ██ ██       ██  ██  ██    ██ ██   ██ ██       ██    ██ ██   ██ 
@@ -70,9 +68,25 @@ fn generate_banner<'a>() -> Paragraph<'a> {
  ██      ██████   ██   ██  ██████  ██   ██ ██████    ██████  ██   ██ 
 "#;
 
-    Paragraph::new(banner_text)
+    let layout = Layout::default()
+        .direction(Direction::Vertical)
+        .constraints([
+            Constraint::Length(9),
+            Constraint::Length(1),
+            Constraint::Length(1),
+            Constraint::Length(1),
+        ])
+        .split(area);
+
+    let banner = Paragraph::new(banner_text)
         .alignment(Alignment::Center)
-        .red()
+        .red();
+    let subtitle = Paragraph::new("Made with ❤️ + 🦀 by Vilayat")
+        .alignment(Alignment::Center)
+        .white();
+
+    frame.render_widget(banner, layout[0]);
+    frame.render_widget(subtitle, layout[2]);
 }
 
 fn render_navbar(frame: &mut Frame, area: Rect, active_tab: usize) {
