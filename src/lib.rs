@@ -1,6 +1,6 @@
-pub mod cli;
 pub mod device;
 pub mod error;
+pub mod tui;
 
 /// Vendor ID for Sony
 pub const SONY_VENDOR_ID: i32 = 0x054c;

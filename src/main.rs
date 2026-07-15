@@ -1,3 +1,5 @@
+use pskursor::tui::setup_tui;
+
 fn main() {
-    println!("Hello World");
+    let _ = setup_tui();
 }

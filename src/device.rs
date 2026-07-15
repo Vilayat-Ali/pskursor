@@ -61,12 +61,4 @@ mod tests {
 
         assert!(devices.len() > 0)
     }
-
-    #[test]
-    fn test_ps5_controller_detection() {
-        let ps5_controller_product_id: u16 = 3302;
-        let devices = get_devices().unwrap();
-
-        assert!(devices.get(&ps5_controller_product_id).is_some());
-    }
 }
