@@ -1,3 +1,5 @@
+pub mod screens;
+
 use ratatui::{
     Frame, Terminal,
     backend::TermionBackend,
@@ -12,6 +14,10 @@ use std::{
     time::Duration,
 };
 use termion::{event::Key, input::TermRead, raw::IntoRawMode, screen::IntoAlternateScreen};
+
+use crate::tui::screens::{
+    device_management::render_device_management_screen, device_stats::render_device_stats_screen,
+};
 
 const MENU_TITLES: [&str; 2] = ["Device Management (d)", "Device Stats (s)"];
 
@@ -108,15 +114,9 @@ fn render_navbar(frame: &mut Frame, area: Rect, active_tab: usize) {
 }
 
 fn render_content(frame: &mut Frame, area: Rect, selected_tab: usize) {
-    let text = match selected_tab {
-        0 => "Great terminal interfaces start with a single widget.".into(),
-        1 => "In the terminal, we don't just render widgets; we create dreams.".into(),
-        2 => "Render boldly, style with purpose.".bold(),
+    match selected_tab {
+        0 => render_device_management_screen(frame, area),
+        1 => render_device_stats_screen(frame, area),
         _ => unreachable!(),
-    };
-    let block = Paragraph::new(text)
-        .alignment(Alignment::Center)
-        .block(Block::bordered());
-
-    frame.render_widget(block, area);
+    }
 }
