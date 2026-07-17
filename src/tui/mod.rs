@@ -17,10 +17,11 @@ use termion::{event::Key, input::TermRead, raw::IntoRawMode, screen::IntoAlterna
 
 use crate::device::{DeviceInfo, get_devices};
 use crate::tui::screens::{
-    device_management::render_device_management_screen, device_stats::render_device_stats_screen,
+    control::render_control_help, device_management::render_device_management_screen,
+    device_stats::render_device_stats_screen,
 };
 
-const MENU_TITLES: [&str; 2] = ["Device Management (d)", "Device Stats (s)"];
+const MENU_TITLES: [&str; 3] = ["Device Management (d)", "Device Stats (s)", "Controls (k)"];
 
 pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
     let stdout = stdout().into_raw_mode()?.into_alternate_screen()?;
@@ -66,6 +67,7 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
                 Key::Char('q') | Key::Char('c') => break,
                 Key::Char('d') => active_tab = 0,
                 Key::Char('s') => active_tab = 1,
+                Key::Char('k') => active_tab = 2,
                 Key::Up => {
                     if let Some(selected) = table_state.selected() {
                         table_state.select(Some(selected.saturating_sub(1)));
@@ -117,7 +119,7 @@ fn render_banner(frame: &mut Frame, area: Rect) {
 }
 
 fn render_navbar(frame: &mut Frame, area: Rect, active_tab: usize) {
-    let main_block = Block::bordered().title(" Menu (m) ").fg(Color::Green);
+    let main_block = Block::bordered().title(" Menu ").fg(Color::Green);
 
     let inner_area = main_block.inner(area);
     frame.render_widget(main_block, area);
@@ -144,6 +146,7 @@ fn render_content(
     match selected_tab {
         0 => render_device_management_screen(frame, area, devices, table_state),
         1 => render_device_stats_screen(frame, area),
+        2 => render_control_help(frame, area),
         _ => unreachable!(),
     }
 }
