@@ -5,7 +5,7 @@ use ratatui::{
     backend::TermionBackend,
     layout::{Alignment, Constraint, Direction, Layout, Rect},
     style::{Color, Modifier, Style, Stylize},
-    widgets::{Block, Paragraph, Tabs},
+    widgets::{Block, Paragraph, TableState, Tabs},
 };
 use std::{
     error,
@@ -15,6 +15,7 @@ use std::{
 };
 use termion::{event::Key, input::TermRead, raw::IntoRawMode, screen::IntoAlternateScreen};
 
+use crate::device::{DeviceInfo, get_devices};
 use crate::tui::screens::{
     device_management::render_device_management_screen, device_stats::render_device_stats_screen,
 };
@@ -27,6 +28,10 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
     let mut terminal = Terminal::new(backend)?;
 
     let mut active_tab = 0;
+
+    let devices = get_devices()?;
+    let mut table_state = TableState::default();
+    table_state.select(if devices.is_empty() { None } else { Some(0) });
 
     terminal.clear()?;
 
@@ -47,7 +52,13 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
 
             render_banner(frame, main_layout[0]);
             render_navbar(frame, main_layout[1], active_tab);
-            render_content(frame, main_layout[2], active_tab);
+            render_content(
+                frame,
+                main_layout[2],
+                active_tab,
+                &devices,
+                &mut table_state,
+            );
         })?;
 
         if let Some(Ok(key)) = keys.next() {
@@ -55,6 +66,16 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
                 Key::Char('q') | Key::Char('c') => break,
                 Key::Char('d') => active_tab = 0,
                 Key::Char('s') => active_tab = 1,
+                Key::Up => {
+                    if let Some(selected) = table_state.selected() {
+                        table_state.select(Some(selected.saturating_sub(1)));
+                    }
+                }
+                Key::Down => {
+                    if let Some(selected) = table_state.selected() {
+                        table_state.select(Some((selected + 1).min(devices.len() - 1)));
+                    }
+                }
                 _ => {}
             }
         }
@@ -113,9 +134,15 @@ fn render_navbar(frame: &mut Frame, area: Rect, active_tab: usize) {
     frame.render_widget(tabs, inner_area);
 }
 
-fn render_content(frame: &mut Frame, area: Rect, selected_tab: usize) {
+fn render_content(
+    frame: &mut Frame,
+    area: Rect,
+    selected_tab: usize,
+    devices: &[DeviceInfo],
+    table_state: &mut TableState,
+) {
     match selected_tab {
-        0 => render_device_management_screen(frame, area),
+        0 => render_device_management_screen(frame, area, devices, table_state),
         1 => render_device_stats_screen(frame, area),
         _ => unreachable!(),
     }
