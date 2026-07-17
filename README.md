@@ -6,17 +6,31 @@
 
 **pskursor** is a simple Linux device driver written in Rust. It lets you use your gamepads and controllers to control your mouse cursor, making it fun to navigate your desktop without a mouse.
 
+<hr />
+
 ## Features
 
 1. Leverages HIDAPI for bluetooth and USB device detection.
 2. Linux native api integration for mouse movement control.
 3. Implemented in rust, so you know its blazingly fast...
 
+<hr />
+
 ## Screenshots
+
+### TUI - Device Management Screen (Main Screen)
 
 <div align="center">
     <img src="./assets/screenshots/tui-main.png" alt="tui-main" />
 </div>
+
+### TUI - Control Screen
+
+<div align="center">
+    <img src="./assets/screenshots/tui-control.png" alt="tui-control" />
+</div>
+
+<hr />
 
 ## License
 
