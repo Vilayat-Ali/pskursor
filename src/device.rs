@@ -1,11 +1,8 @@
-use hidapi::HidApi;
 use regex::Regex;
-use std::{
-    collections::HashSet,
-    error::Error,
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{collections::HashSet, error::Error, sync::LazyLock};
+
+static MAC_REGEX: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"(?i)([0-9a-f]{2}:){5}[0-9a-f]{2}").unwrap());
 
 #[derive(Debug)]
 pub struct DeviceInfo {
@@ -51,57 +48,44 @@ pub fn should_ignore_device_by_name(device_name: &str) -> bool {
     false
 }
 
-fn find_event_device(device_name: &str) -> Option<PathBuf> {
-    let sys_path = Path::new("/sys/class/input");
-    let query = device_name.to_lowercase();
-
-    if let Ok(entries) = fs::read_dir(sys_path) {
-        for entry in entries.flatten() {
-            let file_name = entry.file_name();
-            let file_name_str = file_name.to_string_lossy();
-
-            if file_name_str.starts_with("event") {
-                let name_file_path = entry.path().join("device/name");
-                if let Ok(name) = fs::read_to_string(name_file_path)
-                    && name.trim().to_lowercase().contains(&query)
-                {
-                    return Some(Path::new("/dev/input").join(file_name_str.as_ref()));
-                }
-            }
-        }
-    }
-    None
-}
-
 pub fn get_devices() -> Result<Vec<DeviceInfo>, Box<dyn Error>> {
-    let api = HidApi::new()?;
     let mut device_name_set = HashSet::<String>::new();
     let mut devices = Vec::new();
 
-    for device in api.device_list() {
-        let name = device.product_string().unwrap_or(" UNNAMED ");
+    for (evdev_path, evdev_device) in evdev::enumerate() {
+        let Some(name) = evdev_device.name() else {
+            continue;
+        };
 
-        if name.is_empty() || name == " UNNAMED " {
+        if name.is_empty() || should_ignore_device_by_name(name) {
             continue;
         }
 
-        if should_ignore_device_by_name(name) {
+        let input_id = evdev_device.input_id();
+        let bus_type = input_id.bus_type();
+
+        if bus_type != evdev::BusType::BUS_USB && bus_type != evdev::BusType::BUS_BLUETOOTH {
             continue;
         }
 
-        if device_name_set.insert(name.to_string())
-            && let Some(device_evdev_path) = find_event_device(name)
-            && let Ok(evdev_device) = evdev::Device::open(&device_evdev_path)
-        {
-            devices.push(DeviceInfo {
-                vendor_id: device.vendor_id(),
-                product_id: device.product_id(),
-                device_name: Some(name.to_owned()),
-                mac_addr: device.serial_number().map(|s| s.to_owned()),
-                evdev_path: device_evdev_path.to_string_lossy().to_string(),
-                evdev_device,
-            });
+        if !device_name_set.insert(name.to_string()) {
+            continue;
         }
+
+        let mut device_mac_address: Option<String> = Option::None;
+        let physical_path = evdev_device.physical_path().unwrap_or_default();
+        if MAC_REGEX.is_match(physical_path) {
+            device_mac_address = Some(physical_path.to_string());
+        }
+
+        devices.push(DeviceInfo {
+            product_id: input_id.product(),
+            vendor_id: input_id.vendor(),
+            device_name: Some(name.to_owned()),
+            mac_addr: device_mac_address,
+            evdev_path: evdev_path.to_string_lossy().to_string(),
+            evdev_device,
+        });
     }
 
     Ok(devices)

@@ -30,7 +30,7 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
 
     let mut active_tab = 0;
 
-    let devices = get_devices()?;
+    let mut devices = get_devices()?;
     let mut table_state = TableState::default();
     table_state.select(if devices.is_empty() { None } else { Some(0) });
 
@@ -68,6 +68,7 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
                 Key::Char('d') => active_tab = 0,
                 Key::Char('s') => active_tab = 1,
                 Key::Char('k') => active_tab = 2,
+                Key::Char('r') => devices = get_devices()?,
                 Key::Up => {
                     if let Some(selected) = table_state.selected() {
                         table_state.select(Some(selected.saturating_sub(1)));

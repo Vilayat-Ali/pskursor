@@ -101,7 +101,7 @@ fn render_device_details(
             "Unique Name",
             evdev.unique_name().unwrap_or("-").to_string(),
         ),
-        ("Bus Type", format!("{:?}", input_id.bus_type())),
+        ("Bus Type", input_id.bus_type().to_string()),
         ("Driver Version", format!("{major}.{minor}.{patch}")),
         ("Supported Keys", key_count.to_string()),
     ];

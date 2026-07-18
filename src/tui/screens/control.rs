@@ -11,6 +11,7 @@ pub fn render_control_help(frame: &mut Frame, area: Rect) {
             "1. Device Management",
             vec![
                 (" d ", "Navigate to Device Management page"),
+                (" r ", "Reload the devices in the device list"),
                 (" ▲ ", "Move up in device list table"),
                 (" ▼ ", "Move down in device list table"),
             ],
