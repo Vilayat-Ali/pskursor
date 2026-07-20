@@ -79,7 +79,7 @@ fn render_device_details(
         return;
     };
 
-    let evdev = &device.evdev_device;
+    let evdev = &device.get_evdev_device().unwrap();
     let input_id = evdev.input_id();
     let (major, minor, patch) = evdev.driver_version();
     let key_count = evdev

@@ -68,6 +68,13 @@ pub fn setup_tui() -> Result<(), Box<dyn error::Error>> {
                 Key::Char('d') => active_tab = 0,
                 Key::Char('s') => active_tab = 1,
                 Key::Char('k') => active_tab = 2,
+                Key::Char('y') => {
+                    if let Some(selected_device) =
+                        devices.get(table_state.selected().unwrap_or_default())
+                    {
+                        selected_device.save_config_on_disk().unwrap();
+                    }
+                }
                 Key::Char('r') => devices = get_devices()?,
                 Key::Up => {
                     if let Some(selected) = table_state.selected() {
