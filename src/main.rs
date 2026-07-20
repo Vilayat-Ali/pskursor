@@ -1,4 +1,4 @@
-use pskursor::tui::setup_tui;
+use pskursor::{daemon::start_daemon, tui::setup_tui};
 use std::env;
 
 fn main() {
@@ -7,4 +7,6 @@ fn main() {
     if args.iter().any(|arg| arg == "--config" || arg == "-c") {
         setup_tui().unwrap();
     }
+
+    start_daemon();
 }
