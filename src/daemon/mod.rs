@@ -1,12 +1,33 @@
-use std::collections::HashMap;
+pub mod mouse_controller;
 
 use evdev::{AbsInfo, AbsoluteAxisCode, EventSummary, KeyCode};
+use std::{collections::HashMap, sync::mpsc, thread};
 use tracing::{debug, info, trace, warn};
 
 use crate::{
+    daemon::mouse_controller::translate_controller_input_to_mouse_movements,
     device::DeviceInfo,
     error::{PskursorError, Result},
 };
+
+#[derive(Debug)]
+pub enum ButtonAction {
+    RELEASED,
+    PRESSED,
+    REPEATED,
+}
+
+pub enum InputEvent {
+    Axis {
+        axis: AbsoluteAxisCode,
+        value: f32,
+        centred: bool,
+    },
+    Button {
+        key: KeyCode,
+        action: ButtonAction,
+    },
+}
 
 /// Fraction of an axis' half-range treated as centre when the kernel reports no
 /// `flat` value of its own.
@@ -36,55 +57,69 @@ pub fn start_daemon() -> Result<()> {
 
     info!("streaming controller events — move a stick or press a button");
 
-    loop {
-        let events = device
-            .fetch_events()
-            .map_err(|source| PskursorError::DeviceRead {
-                name: name.clone(),
-                source,
-            })?;
+    let (tx, rx) = mpsc::channel::<InputEvent>();
 
-        for event in events {
-            // Full firehose, including SYN and MSC frames. Enable with
-            // `RUST_LOG=pskursor=trace` or `--verbose`.
-            trace!(
-                event_type = ?event.event_type(),
-                code = event.code(),
-                value = event.value(),
-                "raw evdev event"
-            );
+    let _input_listening_thread_handle = thread::spawn(move || -> Result<()> {
+        info!(
+            "Worker thread spawned for listening device input stream at {}",
+            device_info.evdev_path
+        );
 
-            match event.destructure() {
-                EventSummary::AbsoluteAxis(_, axis, value) => {
-                    let (normalized, centred) = axes.normalize(axis, value);
+        loop {
+            let events = device
+                .fetch_events()
+                .map_err(|source| PskursorError::DeviceRead {
+                    name: name.clone(),
+                    source,
+                })?;
 
-                    if centred {
-                        trace!(axis = ?axis, value, "axis at rest");
-                    } else {
-                        debug!(
-                            axis = ?axis,
-                            value,
-                            normalized = format_args!("{normalized:+.3}"),
-                            "joystick movement"
-                        );
+            for event in events {
+                trace!(
+                    event_type = ?event.event_type(),
+                    code = event.code(),
+                    value = event.value(),
+                    "raw evdev event"
+                );
+
+                match event.destructure() {
+                    EventSummary::AbsoluteAxis(_, axis, value) => {
+                        let (normalized, centred) = axes.normalize(axis, value);
+
+                        if centred {
+                            trace!(axis = ?axis, value, "axis at rest");
+                        } else {
+                            debug!(
+                                axis = ?axis,
+                                value,
+                                normalized = format_args!("{normalized:+.3}"),
+                                "joystick movement"
+                            );
+                        }
+
+                        let _ = tx.send(InputEvent::Axis {
+                            axis,
+                            value: normalized,
+                            centred,
+                        });
                     }
+                    EventSummary::Key(_, key, value) => {
+                        let action = match value {
+                            0 => ButtonAction::RELEASED,
+                            1 => ButtonAction::PRESSED,
+                            _ => ButtonAction::REPEATED,
+                        };
+                        debug!(button = ?ButtonLabel(key), ?action, "button event");
+                        let _ = tx.send(InputEvent::Button { key, action });
+                    }
+                    EventSummary::Synchronization(..) | EventSummary::Misc(..) => {}
+                    other => trace!(event = ?other, "unhandled event"),
                 }
-                EventSummary::Key(_, key, value) => {
-                    // evdev uses 0 = release, 1 = press, 2 = autorepeat.
-                    let action = match value {
-                        0 => "released",
-                        1 => "pressed",
-                        _ => "repeated",
-                    };
-                    debug!(button = ?ButtonLabel(key), action, "button event");
-                }
-                // SYN/MSC frames arrive after every batch; they carry no state
-                // and are already covered by the trace above.
-                EventSummary::Synchronization(..) | EventSummary::Misc(..) => {}
-                other => trace!(event = ?other, "unhandled event"),
             }
         }
-    }
+    });
+
+    translate_controller_input_to_mouse_movements(rx)?;
+    Ok(())
 }
 
 /// Wraps [`KeyCode`] so its `Debug` output reads as the bare constant name.
@@ -111,16 +146,9 @@ struct AxisCalibration {
     minimum: i32,
     maximum: i32,
     deadzone: f32,
-    /// Triggers rest at their minimum and only travel one way, so they map to
-    /// `0.0..=1.0`. Sticks and hats rest at their centre and map to `-1.0..=1.0`.
     unipolar: bool,
 }
 
-/// Axes that rest at their minimum rather than their centre.
-///
-/// Determined by axis code rather than by range: a trigger and a stick can both
-/// report `0..255`, and only the code distinguishes them. On a DualSense these
-/// are L2 and R2.
 const UNIPOLAR_AXES: [AbsoluteAxisCode; 5] = [
     AbsoluteAxisCode::ABS_Z,
     AbsoluteAxisCode::ABS_RZ,
@@ -130,7 +158,6 @@ const UNIPOLAR_AXES: [AbsoluteAxisCode; 5] = [
 ];
 
 impl AxisTable {
-    /// Read `AbsInfo` for every supported axis.
     fn probe(device: &evdev::Device) -> Self {
         let axes = match device.get_absinfo() {
             Ok(absinfo) => absinfo
@@ -168,10 +195,6 @@ impl AxisTable {
         info!(axes = %summary.join(" "), "absolute axes detected");
     }
 
-    /// Normalize a raw reading to roughly `-1.0..=1.0`.
-    ///
-    /// Returns the normalized value and whether the axis is inside its
-    /// deadzone, so idle stick drift does not flood the log.
     fn normalize(&self, axis: AbsoluteAxisCode, value: i32) -> (f32, bool) {
         let Some(calibration) = self.axes.get(&axis.0) else {
             return (value as f32, value == 0);
@@ -185,10 +208,6 @@ impl AxisTable {
 impl AxisCalibration {
     fn new(axis: AbsoluteAxisCode, info: &AbsInfo) -> Self {
         let span = (info.maximum() - info.minimum()).max(1) as f32;
-
-        // The kernel's `flat` is the manufacturer-declared centre tolerance;
-        // when it is 0 (common on DualSense) fall back to a ratio so drift on a
-        // worn stick still reads as "at rest".
         let declared = (info.flat().max(info.fuzz()) as f32) / (span / 2.0);
         let deadzone = if declared > 0.0 {
             declared
