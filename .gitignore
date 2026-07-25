@@ -22,3 +22,6 @@ target
 
 # local test configs
 *.json
+
+# node modules
+node_modules

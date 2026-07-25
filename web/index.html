@@ -1,0 +1,1098 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>pskursor — Gamepad Cursor for Linux</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-400-normal.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/fontsource/fonts/jetbrains-mono@latest/latin-700-normal.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/latin-400-normal.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/fontsource/fonts/space-grotesk@latest/latin-700-normal.css"
+    />
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              mono: ['"JetBrains Mono"', "monospace"],
+              sans: ['"Space Grotesk"', "sans-serif"],
+            },
+            colors: {
+              neon: "#39FF14",
+              cybergreen: "#00ff9f",
+              void: "#05070a",
+              panel: "#0b0f14",
+            },
+          },
+        },
+      };
+    </script>
+    <style>
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        background: #05070a;
+        color: #d1d5db;
+        font-family: "Space Grotesk", sans-serif;
+        overflow-x: hidden;
+        cursor: none;
+      }
+      /* Animated grid background */
+      .grid-bg {
+        background-image:
+          linear-gradient(rgba(57, 255, 20, 0.06) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(57, 255, 20, 0.06) 1px, transparent 1px);
+        background-size: 40px 40px;
+        background-position: center center;
+        animation: gridMove 20s linear infinite;
+      }
+      @keyframes gridMove {
+        0% {
+          background-position:
+            0 0,
+            0 0;
+        }
+        100% {
+          background-position:
+            40px 40px,
+            40px 40px;
+        }
+      }
+      /* Radial glow */
+      .radial-glow::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: radial-gradient(
+          circle at 50% 0%,
+          rgba(57, 255, 20, 0.15),
+          transparent 60%
+        );
+        pointer-events: none;
+      }
+      /* Scanline */
+      .scanline::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: linear-gradient(transparent 50%, rgba(0, 0, 0, 0.25) 50%);
+        background-size: 100% 4px;
+        pointer-events: none;
+        mix-blend-mode: overlay;
+        opacity: 0.35;
+      }
+      /* Glitch text */
+      .glitch {
+        position: relative;
+        color: #fff;
+        text-shadow: 0 0 10px rgba(57, 255, 20, 0.4);
+      }
+      .glitch::before,
+      .glitch::after {
+        content: attr(data-text);
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 100%;
+        overflow: hidden;
+      }
+      .glitch::before {
+        color: #ff0040;
+        animation: glitch1 3s infinite linear alternate-reverse;
+        clip-path: polygon(0 0, 100% 0, 100% 45%, 0 45%);
+        transform: translate(-2px, 0);
+      }
+      .glitch::after {
+        color: #00e5ff;
+        animation: glitch2 2.5s infinite linear alternate-reverse;
+        clip-path: polygon(0 55%, 100% 55%, 100% 100%, 0 100%);
+        transform: translate(2px, 0);
+      }
+      @keyframes glitch1 {
+        0%,
+        90%,
+        100% {
+          transform: translate(0, 0);
+        }
+        92% {
+          transform: translate(-3px, 1px);
+        }
+        94% {
+          transform: translate(2px, -1px);
+        }
+        96% {
+          transform: translate(-1px, 2px);
+        }
+      }
+      @keyframes glitch2 {
+        0%,
+        85%,
+        100% {
+          transform: translate(0, 0);
+        }
+        87% {
+          transform: translate(3px, -1px);
+        }
+        89% {
+          transform: translate(-2px, 1px);
+        }
+        91% {
+          transform: translate(1px, -2px);
+        }
+      }
+      /* Blink cursor */
+      .blink {
+        animation: blink 1s step-end infinite;
+      }
+      @keyframes blink {
+        0%,
+        50% {
+          opacity: 1;
+        }
+        51%,
+        100% {
+          opacity: 0;
+        }
+      }
+      /* Float */
+      .float {
+        animation: float 6s ease-in-out infinite;
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0) rotate(-2deg);
+        }
+        50% {
+          transform: translateY(-15px) rotate(2deg);
+        }
+      }
+      /* Pulse glow */
+      .pulse-glow {
+        animation: pulseGlow 3s ease-in-out infinite;
+      }
+      @keyframes pulseGlow {
+        0%,
+        100% {
+          box-shadow:
+            0 0 20px rgba(57, 255, 20, 0.3),
+            0 0 40px rgba(57, 255, 20, 0.1);
+        }
+        50% {
+          box-shadow:
+            0 0 30px rgba(57, 255, 20, 0.6),
+            0 0 60px rgba(57, 255, 20, 0.3);
+        }
+      }
+      /* Reveal on scroll */
+      .reveal {
+        opacity: 0;
+        transform: translateY(30px);
+        transition:
+          opacity 0.8s ease,
+          transform 0.8s ease;
+      }
+      .reveal.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+      /* Card hover */
+      .feature-card {
+        transition: all 0.3s ease;
+        border: 1px solid rgba(57, 255, 20, 0.15);
+      }
+      .feature-card:hover {
+        transform: translateY(-6px);
+        border-color: rgba(57, 255, 20, 0.6);
+        box-shadow: 0 10px 40px rgba(57, 255, 20, 0.15);
+      }
+      /* Nav link underline */
+      .nav-link {
+        position: relative;
+        transition: color 0.2s;
+      }
+      .nav-link::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        bottom: -4px;
+        width: 0;
+        height: 1px;
+        background: #39ff14;
+        transition: width 0.3s ease;
+      }
+      .nav-link:hover {
+        color: #39ff14;
+      }
+      .nav-link:hover::after {
+        width: 100%;
+      }
+      /* Custom cursor */
+      .cursor-dot {
+        position: fixed;
+        width: 8px;
+        height: 8px;
+        background: #39ff14;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9999;
+        transition: transform 0.1s ease;
+        box-shadow: 0 0 10px #39ff14;
+      }
+      .cursor-ring {
+        position: fixed;
+        width: 32px;
+        height: 32px;
+        border: 1px solid #39ff14;
+        border-radius: 50%;
+        pointer-events: none;
+        z-index: 9998;
+        transition:
+          transform 0.15s ease,
+          width 0.2s,
+          height 0.2s;
+      }
+      /* Terminal window */
+      .terminal {
+        background: #0a0d12;
+        border: 1px solid rgba(57, 255, 20, 0.25);
+        box-shadow: 0 0 40px rgba(57, 255, 20, 0.1);
+      }
+      .terminal-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+      }
+      /* Scrollbar */
+      ::-webkit-scrollbar {
+        width: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: #05070a;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: #39ff14;
+        border-radius: 4px;
+      }
+      /* Button */
+      .btn-primary {
+        position: relative;
+        overflow: hidden;
+        transition: all 0.3s;
+      }
+      .btn-primary::before {
+        content: "";
+        position: absolute;
+        top: 0;
+        left: -100%;
+        width: 100%;
+        height: 100%;
+        background: linear-gradient(
+          90deg,
+          transparent,
+          rgba(255, 255, 255, 0.2),
+          transparent
+        );
+        transition: left 0.5s;
+      }
+      .btn-primary:hover::before {
+        left: 100%;
+      }
+      .btn-primary:hover {
+        box-shadow: 0 0 25px rgba(57, 255, 20, 0.5);
+        transform: translateY(-2px);
+      }
+      /* Marquee */
+      .marquee {
+        display: flex;
+        animation: marquee 30s linear infinite;
+      }
+      @keyframes marquee {
+        0% {
+          transform: translateX(0);
+        }
+        100% {
+          transform: translateX(-50%);
+        }
+      }
+      /* Screenshot frame */
+      .screen-frame {
+        transition: all 0.4s ease;
+      }
+      .screen-frame:hover {
+        transform: scale(1.02) rotate(-0.5deg);
+        box-shadow: 0 20px 60px rgba(57, 255, 20, 0.2);
+      }
+      /* Code block */
+      .code-inline {
+        background: rgba(57, 255, 20, 0.08);
+        border: 1px solid rgba(57, 255, 20, 0.2);
+        padding: 2px 8px;
+        border-radius: 4px;
+        font-family: "JetBrains Mono", monospace;
+        color: #39ff14;
+        font-size: 0.9em;
+      }
+      /* Mobile menu */
+      .mobile-menu {
+        max-height: 0;
+        overflow: hidden;
+        transition: max-height 0.3s ease;
+      }
+      .mobile-menu.open {
+        max-height: 300px;
+      }
+      @media (max-width: 768px) {
+        body {
+          cursor: auto;
+        }
+        .cursor-dot,
+        .cursor-ring {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body class="relative">
+    <!-- Custom cursor -->
+    <div class="cursor-dot" id="cursorDot"></div>
+    <div class="cursor-ring" id="cursorRing"></div>
+
+    <!-- Background layers -->
+    <div class="fixed inset-0 grid-bg pointer-events-none z-0"></div>
+    <div class="fixed inset-0 radial-glow pointer-events-none z-0"></div>
+
+    <!-- NAV -->
+    <nav
+      class="fixed top-0 left-0 right-0 z-50 backdrop-blur-md bg-void/70 border-b border-neon/10"
+    >
+      <div
+        class="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between"
+      >
+        <a href="#home" class="flex items-center gap-2 group">
+          <div
+            class="w-8 h-8 border border-neon/60 flex items-center justify-center rotate-45 group-hover:rotate-0 transition-transform duration-300"
+          >
+            <span
+              class="text-neon font-mono font-bold -rotate-45 group-hover:rotate-0 transition-transform"
+              >P</span
+            >
+          </div>
+          <span class="font-mono font-bold text-white tracking-wider"
+            >pskursor<span class="text-neon blink">_</span></span
+          >
+        </a>
+        <div class="hidden md:flex items-center gap-10 font-mono text-sm">
+          <a href="#home" class="nav-link text-gray-300">~/home</a>
+          <a href="#docs" class="nav-link text-gray-300">~/docs</a>
+          <a href="#changelog" class="nav-link text-gray-300">~/changelog</a>
+          <a href="#author" class="nav-link text-gray-300">~/author</a>
+        </div>
+        <a
+          href="https://github.com"
+          target="_blank"
+          class="hidden md:flex items-center gap-2 px-4 py-2 border border-neon/40 text-neon font-mono text-xs hover:bg-neon/10 transition"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path
+              d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.4.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.2 2.9.1 3.2.8.9 1.2 2 1.2 3.2 0 4.6-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6C20.6 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"
+            />
+          </svg>
+          GitHub
+        </a>
+        <button id="menuBtn" class="md:hidden text-neon">
+          <svg
+            width="24"
+            height="24"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+          >
+            <path d="M3 6h18M3 12h18M3 18h18" />
+          </svg>
+        </button>
+      </div>
+      <div
+        id="mobileMenu"
+        class="mobile-menu md:hidden border-t border-neon/10"
+      >
+        <div class="flex flex-col px-6 py-4 gap-4 font-mono text-sm">
+          <a href="#home" class="text-gray-300 hover:text-neon">~/home</a>
+          <a href="#docs" class="text-gray-300 hover:text-neon">~/docs</a>
+          <a href="#changelog" class="text-gray-300 hover:text-neon"
+            >~/changelog</a
+          >
+          <a href="#author" class="text-gray-300 hover:text-neon">~/author</a>
+        </div>
+      </div>
+    </nav>
+
+    <!-- HERO -->
+    <section
+      id="home"
+      class="relative min-h-screen flex items-center pt-24 pb-16 z-10"
+    >
+      <div
+        class="max-w-7xl mx-auto px-6 grid lg:grid-cols-2 gap-12 items-center"
+      >
+        <div class="reveal">
+          <div
+            class="inline-flex items-center gap-2 px-3 py-1 border border-neon/30 bg-neon/5 font-mono text-xs text-neon mb-6"
+          >
+            <span class="w-2 h-2 bg-neon rounded-full animate-pulse"></span>
+            v1.0.0 · BLAZINGLY FAST
+          </div>
+          <h1 class="text-5xl md:text-7xl font-bold leading-tight mb-6">
+            <span class="glitch" data-text="pskursor">pskursor</span>
+          </h1>
+          <p class="text-xl text-gray-400 mb-4 font-mono">
+            <span class="text-neon">$</span> gamepad → cursor on linux
+          </p>
+          <p class="text-lg text-gray-300 mb-8 leading-relaxed max-w-xl">
+            A simple Linux device driver written in
+            <span class="code-inline">Rust</span> that lets you use your
+            gamepads and controllers to control your mouse cursor. Navigate your
+            desktop without a mouse — <span class="text-neon">finally</span>.
+          </p>
+          <div class="flex flex-wrap gap-4 mb-10">
+            <a
+              href="#docs"
+              class="btn-primary px-6 py-3 bg-neon text-void font-mono font-bold text-sm tracking-wider"
+            >
+              ./get-started
+            </a>
+            <a
+              href="https://github.com"
+              target="_blank"
+              class="btn-primary px-6 py-3 border border-neon/50 text-neon font-mono text-sm tracking-wider hover:bg-neon/10"
+            >
+              view_source()
+            </a>
+          </div>
+          <div class="flex items-center gap-6 font-mono text-xs text-gray-500">
+            <div class="flex items-center gap-2">
+              <span class="text-neon">●</span> Rust
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-neon">●</span> Linux
+            </div>
+            <div class="flex items-center gap-2">
+              <span class="text-neon">●</span> GPLv2
+            </div>
+          </div>
+        </div>
+
+        <!-- Terminal mockup -->
+        <div class="reveal float">
+          <div class="terminal rounded-lg overflow-hidden scanline">
+            <div
+              class="flex items-center gap-2 px-4 py-3 border-b border-neon/15 bg-black/40"
+            >
+              <div class="terminal-dot bg-red-500/70"></div>
+              <div class="terminal-dot bg-yellow-500/70"></div>
+              <div class="terminal-dot bg-green-500/70"></div>
+              <span class="ml-3 font-mono text-xs text-gray-500"
+                >~/pskursor — bash</span
+              >
+            </div>
+            <div class="p-5 font-mono text-sm leading-relaxed">
+              <div>
+                <span class="text-neon">➜</span>
+                <span class="text-cyan-400">~/pskursor</span>
+                <span class="text-white">cargo build --release</span>
+              </div>
+              <div class="text-gray-500 mt-1">Compiling pskursor v1.0.0</div>
+              <div class="text-gray-500">Compiling ratatui v0.30.2</div>
+              <div class="text-gray-500">Compiling serde v1.0.228</div>
+              <div class="text-gray-500">Compiling evdev-rs v0.6.1</div>
+              <div class="text-green-400 mt-1">
+                Finished release [optimized] target(s)
+              </div>
+              <div class="mt-3">
+                <span class="text-neon">➜</span>
+                <span class="text-cyan-400">~/pskursor</span>
+                <span class="text-white">sudo ./pskursor</span>
+              </div>
+              <div class="text-yellow-400 mt-1">
+                [*] scanning input devices...
+              </div>
+              <div class="text-white">
+                [+] found: <span class="text-neon">E-Signal Kreo Hawk</span>
+              </div>
+              <div class="text-white">
+                [+] handler: <span class="text-neon">/dev/input/event12</span>
+              </div>
+              <div class="text-white">
+                [+] bus: <span class="text-neon">USB (0003)</span>
+              </div>
+              <div class="text-green-400 mt-1">
+                [✓] driver attached. gamepad → cursor active
+              </div>
+              <div class="mt-2">
+                <span class="text-neon">➜</span> <span class="blink">▊</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- MARQUEE -->
+    <section
+      class="relative z-10 border-y border-neon/15 py-4 overflow-hidden bg-black/40"
+    >
+      <div class="marquee whitespace-nowrap font-mono text-sm text-neon/60">
+        <div class="flex gap-12 px-6">
+          <span>◆ HIDAPI INTEGRATION</span>
+          <span>◆ BLUETOOTH + USB</span>
+          <span>◆ LINUX NATIVE API</span>
+          <span>◆ WRITTEN IN RUST</span>
+          <span>◆ BLAZINGLY FAST</span>
+          <span>◆ TUI INTERFACE</span>
+          <span>◆ GPLv2 LICENSED</span>
+          <span>◆ OPEN SOURCE</span>
+        </div>
+        <div class="flex gap-12 px-6">
+          <span>◆ HIDAPI INTEGRATION</span>
+          <span>◆ BLUETOOTH + USB</span>
+          <span>◆ LINUX NATIVE API</span>
+          <span>◆ WRITTEN IN RUST</span>
+          <span>◆ BLAZINGLY FAST</span>
+          <span>◆ TUI INTERFACE</span>
+          <span>◆ GPLv2 LICENSED</span>
+          <span>◆ OPEN SOURCE</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- FEATURES -->
+    <section id="docs" class="relative z-10 py-24">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="reveal mb-16">
+          <div class="font-mono text-xs text-neon mb-3">// 01 · FEATURES</div>
+          <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            What's under the hood
+          </h2>
+          <p class="text-gray-400 max-w-2xl">
+            pskursor bridges the gap between your controller and your cursor
+            using low-level Linux input APIs.
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          <div
+            class="feature-card reveal bg-panel/60 backdrop-blur p-8 rounded-lg"
+          >
+            <div
+              class="w-12 h-12 border border-neon/40 flex items-center justify-center mb-5 text-neon"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M6 2l3 6h6l3-6M3 22h18M12 8v14" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3 font-mono">
+              HIDAPI Detection
+            </h3>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Leverages <span class="code-inline">hidapi</span> for seamless
+              Bluetooth and USB device detection. Plug in, pair up, or just
+              play.
+            </p>
+          </div>
+
+          <div
+            class="feature-card reveal bg-panel/60 backdrop-blur p-8 rounded-lg"
+          >
+            <div
+              class="w-12 h-12 border border-neon/40 flex items-center justify-center mb-5 text-neon"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M9 9h6v6H9z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3 font-mono">
+              Linux Native API
+            </h3>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Direct integration with
+              <span class="code-inline">/dev/input/event*</span> and the
+              <span class="code-inline">evdev</span> subsystem for precise
+              cursor control.
+            </p>
+          </div>
+
+          <div
+            class="feature-card reveal bg-panel/60 backdrop-blur p-8 rounded-lg"
+          >
+            <div
+              class="w-12 h-12 border border-neon/40 flex items-center justify-center mb-5 text-neon"
+            >
+              <svg
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+              >
+                <path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z" />
+              </svg>
+            </div>
+            <h3 class="text-xl font-bold text-white mb-3 font-mono">
+              Blazingly Fast
+            </h3>
+            <p class="text-gray-400 text-sm leading-relaxed">
+              Implemented in <span class="code-inline">Rust</span> — zero-cost
+              abstractions, memory safety, and raw performance. No lag, no
+              excuses.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- HOW IT WORKS -->
+    <section class="relative z-10 py-24 border-t border-neon/10">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="reveal mb-16">
+          <div class="font-mono text-xs text-neon mb-3">
+            // 02 · HOW IT WORKS
+          </div>
+          <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            From gamepad to pixel
+          </h2>
+          <p class="text-gray-400 max-w-2xl">
+            pskursor reads the raw input stream from your controller and
+            translates it into cursor movement events.
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-3 gap-6">
+          <div
+            class="reveal relative bg-panel/40 border border-neon/15 rounded-lg p-6"
+          >
+            <div
+              class="absolute -top-3 left-6 font-mono text-xs bg-void px-2 text-neon"
+            >
+              STEP 01
+            </div>
+            <h4 class="text-white font-bold mb-2 mt-2">Detect</h4>
+            <p class="text-gray-400 text-sm">
+              Scans <span class="code-inline">/dev/input</span> and
+              uses evdev API to identify connected gamepads.
+            </p>
+          </div>
+          <div
+            class="reveal relative bg-panel/40 border border-neon/15 rounded-lg p-6"
+          >
+            <div
+              class="absolute -top-3 left-6 font-mono text-xs bg-void px-2 text-neon"
+            >
+              STEP 02
+            </div>
+            <h4 class="text-white font-bold mb-2 mt-2">Attach</h4>
+            <p class="text-gray-400 text-sm">
+              Opens the <span class="code-inline">evdev</span> handler stream at
+              <span class="code-inline">/dev/input/event*</span> and begins
+              reading raw packets.
+            </p>
+          </div>
+          <div
+            class="reveal relative bg-panel/40 border border-neon/15 rounded-lg p-6"
+          >
+            <div
+              class="absolute -top-3 left-6 font-mono text-xs bg-void px-2 text-neon"
+            >
+              STEP 03
+            </div>
+            <h4 class="text-white font-bold mb-2 mt-2">Translate</h4>
+            <p class="text-gray-400 text-sm">
+              Maps analog stick deltas to cursor movement via the Linux native
+              mouse API. You move, the cursor moves.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- SCREENSHOTS -->
+    <section class="relative z-10 py-24 border-t border-neon/10">
+      <div class="max-w-7xl mx-auto px-6">
+        <div class="reveal mb-16">
+          <div class="font-mono text-xs text-neon mb-3">
+            // 03 · SCREENSHOTS
+          </div>
+          <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            A proper TUI
+          </h2>
+          <p class="text-gray-400 max-w-2xl">
+            Manage your devices and tweak controls without ever leaving the
+            terminal.
+          </p>
+        </div>
+
+        <div class="grid md:grid-cols-2 gap-8">
+          <div class="reveal screen-frame">
+            <div class="terminal rounded-lg overflow-hidden">
+              <div
+                class="flex items-center gap-2 px-4 py-2 border-b border-neon/15 bg-black/40"
+              >
+                <div class="terminal-dot bg-red-500/70"></div>
+                <div class="terminal-dot bg-yellow-500/70"></div>
+                <div class="terminal-dot bg-green-500/70"></div>
+                <span class="ml-3 font-mono text-xs text-gray-500"
+                  >device-management</span
+                >
+              </div>
+              <img
+                src="https://i.imgur.com/placeholder-tui-main.png"
+                alt="TUI Main Screen"
+                class="w-full"
+                onerror="
+                  this.src =
+                    'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 800 500%22><rect fill=%22%230a0d12%22 width=%22800%22 height=%22500%22/><text x=%22400%22 y=%22250%22 text-anchor=%22middle%22 fill=%22%2339FF14%22 font-family=%22monospace%22 font-size=%2220%22>TUI · Device Management</text></svg>'
+                "
+              />
+            </div>
+            <p class="font-mono text-xs text-gray-500 mt-3">
+              ↳ Main device selection screen
+            </p>
+          </div>
+
+          <div class="reveal screen-frame">
+            <div class="terminal rounded-lg overflow-hidden">
+              <div
+                class="flex items-center gap-2 px-4 py-2 border-b border-neon/15 bg-black/40"
+              >
+                <div class="terminal-dot bg-red-500/70"></div>
+                <div class="terminal-dot bg-yellow-500/70"></div>
+                <div class="terminal-dot bg-green-500/70"></div>
+                <span class="ml-3 font-mono text-xs text-gray-500"
+                  >control-screen</span
+                >
+              </div>
+              <img
+                src="https://i.imgur.com/placeholder-tui-control.png"
+                alt="TUI Control Screen"
+                class="w-full"
+                onerror="
+                  this.src =
+                    'data:image/svg+xml;utf8,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 800 500%22><rect fill=%22%230a0d12%22 width=%22800%22 height=%22500%22/><text x=%22400%22 y=%22250%22 text-anchor=%22middle%22 fill=%22%2339FF14%22 font-family=%22monospace%22 font-size=%2220%22>TUI · Control Screen</text></svg>'
+                "
+              />
+            </div>
+            <p class="font-mono text-xs text-gray-500 mt-3">
+              ↳ Control & sensitivity configuration
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHANGELOG -->
+    <section id="changelog" class="relative z-10 py-24 border-t border-neon/10">
+      <div class="max-w-4xl mx-auto px-6">
+        <div class="reveal mb-16">
+          <div class="font-mono text-xs text-neon mb-3">// 04 · CHANGELOG</div>
+          <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            Release notes
+          </h2>
+          <p class="text-gray-400">What shipped, what got fixed.</p>
+        </div>
+
+        <div class="space-y-6">
+          <div class="reveal border-l-2 border-neon pl-6 relative">
+            <div
+              class="absolute -left-[9px] top-0 w-4 h-4 bg-neon rounded-full pulse-glow"
+            ></div>
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <span class="font-mono text-neon font-bold">v1.0.0</span>
+              <span class="font-mono text-xs text-gray-500">latest · 2026</span>
+              <span
+                class="px-2 py-0.5 bg-neon/10 border border-neon/30 text-neon text-xs font-mono"
+                >stable</span
+              >
+            </div>
+            <h4 class="text-white font-bold mb-2">Initial public release</h4>
+            <ul class="text-gray-400 text-sm space-y-1 font-mono">
+              <li>+ HIDAPI integration for USB & Bluetooth</li>
+              <li>+ Linux native API cursor control</li>
+              <li>+ Interactive TUI for device management</li>
+              <li>+ Sensitivity & control configuration</li>
+            </ul>
+          </div>
+
+          <div class="reveal border-l-2 border-neon/30 pl-6 relative">
+            <div
+              class="absolute -left-[7px] top-0 w-3 h-3 bg-gray-600 rounded-full"
+            ></div>
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <span class="font-mono text-gray-400 font-bold">v0.2.0</span>
+              <span class="font-mono text-xs text-gray-500">pre-release</span>
+            </div>
+            <h4 class="text-white font-bold mb-2">Bluetooth support</h4>
+            <ul class="text-gray-400 text-sm space-y-1 font-mono">
+              <li>+ Added wireless controller pairing</li>
+              <li>~ Refactored input handler pipeline</li>
+            </ul>
+          </div>
+
+          <div class="reveal border-l-2 border-neon/30 pl-6 relative">
+            <div
+              class="absolute -left-[7px] top-0 w-3 h-3 bg-gray-600 rounded-full"
+            ></div>
+            <div class="flex flex-wrap items-center gap-3 mb-2">
+              <span class="font-mono text-gray-400 font-bold">v0.1.0</span>
+              <span class="font-mono text-xs text-gray-500">pre-release</span>
+            </div>
+            <h4 class="text-white font-bold mb-2">First commit</h4>
+            <ul class="text-gray-400 text-sm space-y-1 font-mono">
+              <li>+ Basic USB gamepad detection</li>
+              <li>+ Proof-of-concept cursor movement</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- AUTHOR -->
+    <section id="author" class="relative z-10 py-24 border-t border-neon/10">
+      <div class="max-w-4xl mx-auto px-6">
+        <div class="reveal mb-12">
+          <div class="font-mono text-xs text-neon mb-3">// 05 · AUTHOR</div>
+          <h2 class="text-4xl md:text-5xl font-bold text-white mb-4">
+            Made with ❤️
+          </h2>
+        </div>
+
+        <div
+          class="reveal bg-panel/60 backdrop-blur border border-neon/20 rounded-lg p-8 md:p-12 relative overflow-hidden"
+        >
+          <div
+            class="absolute top-0 right-0 w-64 h-64 bg-neon/5 rounded-full blur-3xl"
+          ></div>
+          <div class="relative flex flex-col md:flex-row items-center gap-8">
+            <div class="relative">
+              <div
+                class="w-32 h-32 rounded-full border-2 border-neon pulse-glow flex items-center justify-center bg-void"
+              >
+                <span class="font-mono text-5xl text-neon font-bold">SV</span>
+              </div>
+              <div
+                class="absolute -bottom-2 -right-2 w-8 h-8 bg-neon rounded-full flex items-center justify-center"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="#05070a">
+                  <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                </svg>
+              </div>
+            </div>
+            <div class="flex-1 text-center md:text-left">
+              <h3 class="text-2xl font-bold text-white mb-1">
+                Syed Vilayat Ali Rizvi
+              </h3>
+              <p class="font-mono text-sm text-neon mb-4">
+                @vilayat-ali · systems tinkerer
+              </p>
+              <p class="text-gray-400 mb-6 leading-relaxed">
+                Building low-level tools for Linux because the terminal is home.
+                pskursor started as a weekend experiment — "what if I could
+                navigate my desktop with a gamepad?" — and turned into a proper
+                driver.
+              </p>
+              <div class="flex flex-wrap gap-3 justify-center md:justify-start">
+                <a
+                  href="https://www.linkedin.com/in/syed-vilayat-ali-rizvi"
+                  target="_blank"
+                  class="px-4 py-2 border border-neon/40 text-neon font-mono text-xs hover:bg-neon/10 transition flex items-center gap-2"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M20.5 2h-17A1.5 1.5 0 002 3.5v17A1.5 1.5 0 003.5 22h17a1.5 1.5 0 001.5-1.5v-17A1.5 1.5 0 0020.5 2zM8 19H5v-9h3zM6.5 8.25A1.75 1.75 0 118.3 6.5a1.78 1.78 0 01-1.8 1.75zM19 19h-3v-4.74c0-1.42-.6-1.93-1.38-1.93A1.74 1.74 0 0013 14.19a.66.66 0 000 .14V19h-3v-9h2.9v1.3a3.11 3.11 0 012.7-1.4c1.55 0 3.36.86 3.36 3.66z"
+                    />
+                  </svg>
+                  LinkedIn
+                </a>
+                <a
+                  href="https://github.com"
+                  target="_blank"
+                  class="px-4 py-2 border border-neon/40 text-neon font-mono text-xs hover:bg-neon/10 transition flex items-center gap-2"
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="currentColor"
+                  >
+                    <path
+                      d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.2 11.4.6.1.8-.3.8-.6v-2c-3.3.7-4-1.6-4-1.6-.5-1.4-1.3-1.8-1.3-1.8-1.1-.7.1-.7.1-.7 1.2.1 1.8 1.2 1.8 1.2 1.1 1.8 2.8 1.3 3.5 1 .1-.8.4-1.3.8-1.6-2.6-.3-5.3-1.3-5.3-5.8 0-1.3.5-2.3 1.2-3.2-.1-.3-.5-1.5.1-3.2 0 0 1-.3 3.3 1.2 1-.3 2-.4 3-.4s2 .1 3 .4c2.3-1.5 3.3-1.2 3.3-1.2.7 1.7.2 2.9.1 3.2.8.9 1.2 2 1.2 3.2 0 4.6-2.7 5.5-5.3 5.8.4.4.8 1.1.8 2.2v3.3c0 .3.2.7.8.6C20.6 21.8 24 17.3 24 12c0-6.63-5.37-12-12-12z"
+                    />
+                  </svg>
+                  GitHub
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CTA -->
+    <section class="relative z-10 py-24 border-t border-neon/10">
+      <div class="max-w-4xl mx-auto px-6 text-center reveal">
+        <div class="font-mono text-xs text-neon mb-3">// ready?</div>
+        <h2 class="text-4xl md:text-6xl font-bold text-white mb-6">
+          Grab your controller.<br />
+          <span class="text-neon">Ditch the mouse.</span>
+        </h2>
+        <p class="text-gray-400 mb-8 max-w-xl mx-auto">
+          Clone the repo, build with cargo, and start navigating Linux like it's
+          2026.
+        </p>
+        <div
+          class="inline-flex items-center gap-3 px-5 py-3 bg-black border border-neon/30 rounded font-mono text-sm"
+        >
+          <span class="text-neon">$</span>
+          <span class="text-white"
+            >git clone https://github.com/pskursor/pskursor</span
+          >
+          <button
+            onclick="
+              navigator.clipboard.writeText(
+                'git clone https://github.com/pskursor/pskursor',
+              )
+            "
+            class="text-gray-500 hover:text-neon transition"
+            title="Copy"
+          >
+            <svg
+              width="16"
+              height="16"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" />
+              <path d="M5 15H4a2 2 0 01-2-2V4a2 2 0 012-2h9a2 2 0 012 2v1" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- FOOTER -->
+    <footer class="relative z-10 border-t border-neon/15 py-10 bg-black/40">
+      <div
+        class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row items-center justify-between gap-4 font-mono text-xs text-gray-500"
+      >
+        <div class="flex items-center gap-2">
+          <span class="text-neon">●</span>
+          <span>© 2026 pskursor · GPLv2</span>
+        </div>
+        <div class="flex items-center gap-6">
+          <a href="#home" class="hover:text-neon transition">home</a>
+          <a href="#docs" class="hover:text-neon transition">docs</a>
+          <a href="#changelog" class="hover:text-neon transition">changelog</a>
+          <a href="#author" class="hover:text-neon transition">author</a>
+        </div>
+        <div>built with rust & caffeine ☕</div>
+      </div>
+    </footer>
+
+    <script>
+      // Custom cursor
+      const dot = document.getElementById("cursorDot");
+      const ring = document.getElementById("cursorRing");
+      let mouseX = 0,
+        mouseY = 0,
+        ringX = 0,
+        ringY = 0;
+      document.addEventListener("mousemove", (e) => {
+        mouseX = e.clientX;
+        mouseY = e.clientY;
+        dot.style.left = mouseX - 4 + "px";
+        dot.style.top = mouseY - 4 + "px";
+      });
+      function animateRing() {
+        ringX += (mouseX - ringX) * 0.15;
+        ringY += (mouseY - ringY) * 0.15;
+        ring.style.left = ringX - 16 + "px";
+        ring.style.top = ringY - 16 + "px";
+        requestAnimationFrame(animateRing);
+      }
+      animateRing();
+      document.querySelectorAll("a, button").forEach((el) => {
+        el.addEventListener("mouseenter", () => {
+          ring.style.width = "50px";
+          ring.style.height = "50px";
+          ring.style.borderColor = "#39FF14";
+        });
+        el.addEventListener("mouseleave", () => {
+          ring.style.width = "32px";
+          ring.style.height = "32px";
+        });
+      });
+
+      // Scroll reveal
+      const observer = new IntersectionObserver(
+        (entries) => {
+          entries.forEach((entry) => {
+            if (entry.isIntersecting) entry.target.classList.add("visible");
+          });
+        },
+        { threshold: 0.1 },
+      );
+      document
+        .querySelectorAll(".reveal")
+        .forEach((el) => observer.observe(el));
+
+      // Mobile menu
+      const menuBtn = document.getElementById("menuBtn");
+      const mobileMenu = document.getElementById("mobileMenu");
+      menuBtn.addEventListener("click", () =>
+        mobileMenu.classList.toggle("open"),
+      );
+      mobileMenu
+        .querySelectorAll("a")
+        .forEach((a) =>
+          a.addEventListener("click", () =>
+            mobileMenu.classList.remove("open"),
+          ),
+        );
+    </script>
+  </body>
+</html>

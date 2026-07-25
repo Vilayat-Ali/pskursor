@@ -1,5 +1,6 @@
 use crate::device::DeviceInfo;
 use std::thread;
+use evdev::EventType;
 use tracing::{error, info, trace};
 use tracing_subscriber::EnvFilter;
 
@@ -30,6 +31,17 @@ pub fn start_daemon() {
                                 event.code(),
                                 event.value()
                             );
+
+                            match event.event_type() {
+                                EventType::ABSOLUTE => {
+                                    trace!(
+                                        "Joystick manipulation caught"
+                                    )
+                                },
+                                _ => {
+                                    trace!("")
+                                }
+                            }
                         }
                     }
                     Err(err) => {
