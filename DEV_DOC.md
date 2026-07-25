@@ -44,3 +44,65 @@ This file lists the system kernel modules waiting to react to incoming events. T
 * **`mousedev` (Mouse Emulator):** A legacy compatibility layer that pools all coordinates from connected pointers into a single combined layout (`/dev/input/mice`).
 * **`rfkill` (Radio Frequency Switch):** A specialized module that listens to hardware toggles or laptop Fn keys to instantly enable or disable wireless radios (Wi-Fi, Bluetooth).
 * **`sysrq` (Magic SysRq):** A low-level filter that intercepts diagnostic emergency commands (like safely unmounting filesystems or forcing system reboots) even if your graphical environment completely crashes.
+
+---
+
+## Debugging: "the daemon prints nothing when I move the sticks"
+
+Three distinct causes, in the order worth checking.
+
+### 1. Log level
+
+Controller events are emitted at `DEBUG`. A subscriber initialised with an
+`info` default filter drops them, so the daemon looks idle even while it is
+reading events correctly. The default filter is therefore `pskursor=debug`, not
+`info`. `RUST_LOG` overrides it.
+
+Note also that `tracing_subscriber::fmt()` writes to **stdout** by default;
+pskursor sends diagnostics to **stderr** so stdout stays clean under a pipe.
+
+### 2. The wrong event node was activated
+
+A DualSense exposes three nodes (see the table in `README.md`). Only the plain
+gamepad node has sticks; the Touchpad node also reports `ABS_X`/`ABS_Y`, so an
+axes-only capability check will happily nominate it.
+
+The discriminator is `BTN_SOUTH` (aka `BTN_GAMEPAD`), the kernel's canonical
+marker for a gamepad action pad. `device::missing_gamepad_capabilities` requires
+`ABS_X` + `ABS_Y` **and** a gamepad button, and reports which check failed.
+
+Event node numbers are not stable across reconnects, so the daemon re-validates
+capabilities on startup instead of trusting the persisted flag.
+
+### 3. Permissions
+
+`/dev/input/event*` is `root:input` `0660`. Without membership of the `input`
+group `Device::open` fails with `PermissionDenied`, which pskursor reports with
+the `usermod` invocation needed to fix it.
+
+---
+
+## Axis normalization
+
+Raw readings are normalized for logging and for the eventual cursor mapping:
+
+* **Sticks and hats** rest at their centre and map to `-1.0..=1.0`.
+* **Triggers** (`ABS_Z`, `ABS_RZ`, `ABS_GAS`, `ABS_BRAKE`, `ABS_THROTTLE`) rest
+  at their *minimum* and map to `0.0..=1.0`. Centre-based normalization would
+  report a released trigger as `-1.0`, i.e. fully deflected. Trigger-vs-stick
+  cannot be inferred from the range — a DualSense reports `0..255` for both — so
+  it is decided by axis code.
+
+The deadzone uses the kernel's `flat`/`fuzz` values when the device declares
+them, and falls back to 12% of the half-range otherwise (a DualSense reports
+`flat = 0`). Readings inside the deadzone are logged at `TRACE`, not `DEBUG`, so
+idle stick drift does not flood the log.
+
+---
+
+## Testing against hardware you do not have
+
+`tests/event_stream.rs` builds a **uinput virtual gamepad**, activates it through
+the normal DEVAYNC flow, emits stick and button events, and asserts the daemon
+logs them at the *default* log level — which is what regression-guards the bug
+described above. It skips itself when `/dev/uinput` is not writable.

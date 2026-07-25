@@ -1,6 +1,6 @@
 [package]
 name = "pskursor"
-description = "Open-source device driver for PlayStation 5 Dual Sense Controller for Linux"
+description = "Open-source device driver for Gamepads and Controllers for Linux"
 authors = ["Syed Vilayat Ali Rizvi <vilayatcodemysite@gmail.com>"]
 version = "0.1.0"
 edition = "2024"
@@ -14,7 +14,7 @@ panic = "abort"
 
 [dependencies]
 clap = { version = "4.6.1", features = ["derive"] }
-evdev = { version = "0.13.2", features = ["tokio", "serde"] }
+evdev = "0.13.2"
 ratatui = { version = "0.30.2", default-features = false, features = ["termion"] }
 regex = "1.13.1"
 serde = { version = "1.0.228", features = ["derive"] }
