@@ -64,8 +64,6 @@ fn init_tracing(verbose: bool) {
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_target(false)
-        // Diagnostics go to stderr so stdout stays free for real output and
-        // stays usable under a pipe or a service manager.
         .with_writer(std::io::stderr)
         .init();
 }
